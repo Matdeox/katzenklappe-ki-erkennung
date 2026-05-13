@@ -1,0 +1,58 @@
+alias: KI-gestützte Beuteerkennung
+description: >-
+  Erfasst ein Bild bei Tier-Erkennung und nutzt eine KI-Bildanalyse,
+  um den Zugang zum Haus bei erkannter Beute zu regeln.
+triggers:
+  - entity_id: binary_sensor.kamera_tier_erkennung 
+    from: "off"
+    to: "on"
+    trigger: state
+actions:
+  - delay:
+      milliseconds: 250
+  - action: camera.snapshot
+    target:
+      entity_id: camera.katzenklappe_aussen
+    data:
+      filename: "{{ bild_pfad }}"
+  - alias: KI Bild Analyse (Regler-Logik)
+    action: llmvision.image_analyzer
+    data:
+      provider: DEIN_LLM_PROVIDER_ID 
+      model: gpt-4o-mini
+      message: >-
+        Analysiere das Bild der Katze an der Klappe. Prüfe, ob sie ein Beutetier
+        im Maul trägt (z. B. Maus, Eidechse, Vogel oder Blindschleiche). Achte
+        auf untypische Formen wie herabhängende Schwänze, Pfoten oder Flügel.
+        Antworte AUSSCHLIESSLICH im folgenden JSON-Format: {"beute_erkannt":
+        true} oder {"beute_erkannt": false}
+      image_file: "{{ bild_pfad }}"
+      response_format: text
+    response_variable: ki_antwort
+  - if:
+      - condition: template
+        value_template: >-
+          {{ (ki_antwort.response_text | from_json).beute_erkannt == true }}
+    then:
+      # Stellglied: Klappe verriegeln (hier simuliert durch Smart Plug)
+      - action: plug.turn_off
+        target:
+          entity_id: plug.katzenklappe_sperre
+      - action: notify.persistent_notification
+        data:
+          title: "Beute-Alarm!"
+          message: "Zugang verweigert: Beute erkannt."
+      - delay:
+          minutes: 15
+      - action: plug.turn_on
+        target:
+          entity_id: plug.katzenklappe_sperre
+    else:
+      # Soll-Zustand: Freier Zugang
+      - action: plug.turn_on
+        target:
+          entity_id: plug.katzenklappe_sperre
+variables:
+  zeitstempel: "{{ now().strftime('%Y%m%d_%H%M%S') }}"
+  bild_pfad: /config/www/katzen_check_{{ zeitstempel }}.jpg
+mode: single

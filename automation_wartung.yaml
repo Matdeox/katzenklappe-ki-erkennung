@@ -1,0 +1,10 @@
+alias: "Speicheroptimierung"
+description: >-
+  Löscht täglich um 03:00 Uhr Kamerabilder, die älter als 7 Tage sind,
+  um den Speicherplatz des Systems zu verwalten.
+triggers:
+  - at: "03:00:00"
+    trigger: time
+actions:
+  - action: shell_command.delete_old_cat_pics
+mode: single
